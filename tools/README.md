@@ -32,5 +32,5 @@ in the scripts.
 Following shell command will create the docker that can be used to run Circuit Training with DREAMPlace.  
 
 ```shell
-sh ./build_dreamplace.sh
+sh ./bootstrap_dreamplace_build.sh
 ```
