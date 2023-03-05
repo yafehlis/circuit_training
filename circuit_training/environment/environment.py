@@ -32,6 +32,9 @@ import tensorflow as tf
 from tf_agents.environments import suite_gym
 from tf_agents.environments import wrappers
 
+from circuit_training.dreamplace import dreamplace_core
+from dreamplace import Params
+
 ObsType = Dict[Text, np.ndarray]
 InfoType = Dict[Text, float]
 
@@ -61,7 +64,7 @@ def cost_info_function(
     plc: plc_client.PlacementCost,
     done: bool,
     wirelength_weight: float = 1.0,
-    density_weight: float = 1.0,
+    density_weight: float = 0.5,
     congestion_weight: float = 0.5) -> Tuple[float, Dict[Text, float]]:
   """Returns the RL cost and info.
 
@@ -236,6 +239,43 @@ class CircuitEnv(object):
     self._current_mask = self._get_mask()
     self._infeasible_state = False
 
+    if self._std_cell_placer_mode == 'dreamplace':
+      canvas_width, canvas_height = self._plc.get_canvas_width_height()
+      dreamplace_params = Params.get_dreamplace_params(
+          1000,
+          1.0,
+          0.01,
+          canvas_width,
+          canvas_height,
+          128,
+          128,
+      )
+      # Dreamplace requires that movable nodes appear first
+      # and then fixed nodes.
+      # Since the first node to be placed (becoming fixed) is the first node in
+      # _sorted_node_indices, we reverse the order and send it to dreamplace.
+      hard_macro_order = self._sorted_node_indices[: self._num_hard_macros]
+      hard_macro_order = hard_macro_order[::-1]
+      self._dreamplace = dreamplace_core.SoftMacroPlacer(
+          self._plc, dreamplace_params, hard_macro_order
+      )
+      # Making all macros movable for a mixed-size.
+      self._dreamplace.placedb_plc.update_num_non_movable_macros(
+          plc=self._plc, num_non_movable_macros=0
+      )
+      converged = self._dreamplace.place()
+      self._dreamplace.placedb_plc.write_movable_locations_to_plc(self._plc)
+      if not converged:
+        logging.warning("Initial DREAMPlace mixed-size didn't converge.")
+
+      self._dp_mixed_macro_locations = {
+          m: self._plc.get_node_location(m) for m in hard_macro_order
+      }
+      # Recreate the ObservationExtractor, so we use the DREAMPlace mixed-size,
+      # placement as the default location in the observation.
+      self._observation_extractor = observation_extractor.ObservationExtractor(
+          plc=self._plc)
+    
     if unplace_all_nodes_in_init:
       # TODO(b/223026568) Remove unplace_all_nodes from init
       self._plc.unplace_all_nodes()
@@ -414,7 +454,19 @@ class CircuitEnv(object):
     self._plc.place_node(node_index, self.translate_to_original_canvas(action))
 
   def analytical_placer(self) -> None:
-    if self._std_cell_placer_mode == 'fd':
+    if self._std_cell_placer_mode == 'dreamplace':
+      self._dreamplace.placedb_plc.read_hard_macros_from_plc(self._plc)
+      # We always update the placedb with number of placed macros, if the
+      # previous number of fixed macros are the same as the current, the
+      # expensive placedb conversion won't be called.
+      self._dreamplace.placedb_plc.update_num_non_movable_macros(
+          plc=self._plc, num_non_movable_macros=self._current_node
+      )
+      converged = self._dreamplace.place()
+      if not converged:
+        logging.warning("DREAMPlace didn't converge.")
+      self._dreamplace.placedb_plc.write_movable_locations_to_plc(self._plc)
+    elif self._std_cell_placer_mode == 'fd':
       placement_util.fd_placement_schedule(self._plc)
     else:
       raise ValueError('%s is not a supported std_cell_placer_mode.' %
