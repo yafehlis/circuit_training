@@ -1,6 +1,6 @@
 sudo docker run --network host \
-     --rm -it -v $(pwd):/workspace -w /workspace/ circuit_training:core  \
-     python3 -m circuit_training.learning.train_ppo \
+     --rm -it -v $(pwd):/workspace -w /workspace/ circuit_training:corepy39  \
+     python3.9 -m circuit_training.learning.train_ppo \
        --root_dir=${ROOT_DIR} \
        --replay_buffer_server_address=${REVERB_SERVER} \
        --variable_container_server_address=${REVERB_SERVER} \

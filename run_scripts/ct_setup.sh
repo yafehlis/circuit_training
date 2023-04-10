@@ -1,5 +1,6 @@
 #!/usr/bin/bash -i
 export design="Ariane"
+export GLOBAL_SEED=111
 export ROOT_DIR="./logs/${design}_run1"
 export REVERB_PORT=8008
 export NUM_ITERATION=200
