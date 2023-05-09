@@ -1,6 +1,6 @@
 #!/usr/bin/bash -i
 export CUDA_VISIBLE_DEVICES="-1"
-python3 -m circuit_training.learning.ppo_collect \
+python3.9 -m circuit_training.learning.ppo_collect \
   --root_dir=${ROOT_DIR} \
   --replay_buffer_server_address=${REVERB_SERVER} \
   --variable_container_server_address=${REVERB_SERVER} \
