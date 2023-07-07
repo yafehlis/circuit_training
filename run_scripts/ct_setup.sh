@@ -1,4 +1,4 @@
-#!/usr/bin/bash -i
+#!/bin/bash -i
 export design="Ariane"
 export GLOBAL_SEED=111
 export ROOT_DIR="./logs/${design}_run1"
